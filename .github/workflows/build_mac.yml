@@ -19,23 +19,24 @@ jobs:
 
     # 1. Publish the App files
     - name: Publish
-      run: dotnet publish Source/Source.csproj -c Release -r osx-x64 --self-contained -o publish
-
-    # 2. Install Python Dependencies (for the bridge)
-    - name: Install Python Libs
       run: |
-        pip3 install sounddevice faster-whisper numpy --target publish/
+        # Find the project file automatically
+        CSPROJ_PATH=$(find . -name "*.csproj" | head -n 1)
+        echo "Found Project: $CSPROJ_PATH"
+        
+        # Build the app for Intel Macs (Universal via Rosetta)
+        dotnet publish "$CSPROJ_PATH" -c Release -r osx-x64 --self-contained -o publish
 
-    # 3. Create the .APP Structure (The "Professional" Container)
+    # 2. Create the .APP Structure (Professional Layout)
     - name: Create App Bundle
       run: |
         mkdir -p "Interview Copilot.app/Contents/MacOS"
         mkdir -p "Interview Copilot.app/Contents/Resources"
         
-        # Copy all published files to the MacOS folder
+        # Copy the built files
         cp -a publish/. "Interview Copilot.app/Contents/MacOS/"
         
-        # Create the Info.plist (Essential for Mac to recognize it as an App)
+        # Create Info.plist (Required for Mac Apps)
         echo '<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -61,16 +62,16 @@ jobs:
         </dict>
         </plist>' > "Interview Copilot.app/Contents/Info.plist"
 
-        # Fix Permissions (Crucial!)
+        # Make the executable runable
         chmod +x "Interview Copilot.app/Contents/MacOS/Source"
 
-    # 4. Create the DMG Installer
+    # 3. Create the DMG Installer
     - name: Create DMG
       run: |
-        # Use native mac tool to create disk image
+        # Use built-in Mac tool to create the disk image
         hdiutil create -volname "InterviewCopilot" -srcfolder "Interview Copilot.app" -ov -format UDZO "InterviewCopilot.dmg"
 
-    # 5. Upload the Result so you can download it
+    # 4. Upload the Result for you to download
     - name: Upload DMG
       uses: actions/upload-artifact@v4
       with:
