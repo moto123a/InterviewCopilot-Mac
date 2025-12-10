@@ -1,8 +1,8 @@
-name: Build Mac Installer
+name: Build Mac App
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -10,70 +10,89 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
 
-    # 1. Publish the App files
-    - name: Publish
-      run: |
-        # Find the project file automatically
-        CSPROJ_PATH=$(find . -name "*.csproj" | head -n 1)
-        echo "Found Project: $CSPROJ_PATH"
-        
-        # Build the app for Intel Macs (Universal via Rosetta)
-        dotnet publish "$CSPROJ_PATH" -c Release -r osx-x64 --self-contained -o publish
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-    # 2. Create the .APP Structure
-    - name: Create App Bundle
-      run: |
-        mkdir -p "Interview Copilot.app/Contents/MacOS"
-        mkdir -p "Interview Copilot.app/Contents/Resources"
-        
-        # Copy the built files
-        cp -a publish/. "Interview Copilot.app/Contents/MacOS/"
-        
-        # Create Info.plist (Required for Mac Apps)
-        echo '<?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>CFBundleName</key>
-            <string>Interview Copilot</string>
-            <key>CFBundleDisplayName</key>
-            <string>Interview Copilot</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.interviewcopilot.app</string>
-            <key>CFBundleVersion</key>
-            <string>1.0.0</string>
-            <key>CFBundlePackageType</key>
-            <string>APPL</string>
-            <key>CFBundleSignature</key>
-            <string>????</string>
-            <key>CFBundleExecutable</key>
-            <string>Source</string>
-            <key>CFBundleIconFile</key>
-            <string>AppIcon</string>
-            <key>NSHighResolutionCapable</key>
-            <true/>
-        </dict>
-        </plist>' > "Interview Copilot.app/Contents/Info.plist"
+      # 1. Install Python libs and PyInstaller
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sounddevice faster-whisper numpy pyinstaller
 
-        # Make the executable runable
-        chmod +x "Interview Copilot.app/Contents/MacOS/Source"
+      # 2. Compile Python bridge to single executable
+      #    If whisper_mic_bridge.py is not in repo root, change the path here.
+      - name: Build Python executable
+        run: |
+          pyinstaller --onefile --name whisper_bridge --clean whisper_mic_bridge.py
 
-    # 3. Create the DMG Installer
-    - name: Create DMG
-      run: |
-        # Use built-in Mac tool to create the disk image
-        hdiutil create -volname "InterviewCopilot" -srcfolder "Interview Copilot.app" -ov -format UDZO "InterviewCopilot.dmg"
+      # 3. Publish .NET app for macOS
+      #    Make sure the csproj path and app name (InterviewCopilot) match your project.
+      - name: Publish .NET app
+        run: |
+          dotnet publish Source/Source.csproj \
+            -c Release \
+            -r osx-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o publish
 
-    # 4. Upload the Result for you to download
-    - name: Upload DMG
-      uses: actions/upload-artifact@v4
-      with:
-        name: InterviewCopilot_Mac_Installer
-        path: InterviewCopilot.dmg
+      # 4. Create .app bundle
+      - name: Create Mac bundle
+        run: |
+          mkdir -p "InterviewCopilot.app/Contents/MacOS"
+          mkdir -p "InterviewCopilot.app/Contents/Resources"
+
+          # Copy published .NET files
+          cp publish/InterviewCopilot "InterviewCopilot.app/Contents/MacOS/" || true
+          cp publish/*.dll "InterviewCopilot.app/Contents/MacOS/" || true
+          cp publish/*.dylib "InterviewCopilot.app/Contents/MacOS/" 2>/dev/null || true
+          cp publish/*.json "InterviewCopilot.app/Contents/MacOS/" || true
+
+          # Copy compiled Python bridge
+          # If dist is under a subfolder, adjust to e.g. Source/dist/whisper_bridge
+          cp dist/whisper_bridge "InterviewCopilot.app/Contents/MacOS/" || true
+
+          # Create Info.plist (note: EOF is at start of line)
+          cat > "InterviewCopilot.app/Contents/Info.plist" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>CFBundleExecutable</key>
+    <string>InterviewCopilot</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.yourname.interviewcopilot</string>
+    <key>CFBundleName</key>
+    <string>InterviewCopilot</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Need microphone for transcription</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+  </dict>
+</plist>
+EOF
+
+      # 5. Zip and upload
+      - name: Zip app
+        run: zip -r "InterviewCopilot_Mac.zip" "InterviewCopilot.app"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacApp
+          path: InterviewCopilot_Mac.zip
