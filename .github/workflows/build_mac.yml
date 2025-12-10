@@ -1,0 +1,78 @@
+name: Build Mac Installer
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    # 1. Publish the App files
+    - name: Publish
+      run: dotnet publish Source/Source.csproj -c Release -r osx-x64 --self-contained -o publish
+
+    # 2. Install Python Dependencies (for the bridge)
+    - name: Install Python Libs
+      run: |
+        pip3 install sounddevice faster-whisper numpy --target publish/
+
+    # 3. Create the .APP Structure (The "Professional" Container)
+    - name: Create App Bundle
+      run: |
+        mkdir -p "Interview Copilot.app/Contents/MacOS"
+        mkdir -p "Interview Copilot.app/Contents/Resources"
+        
+        # Copy all published files to the MacOS folder
+        cp -a publish/. "Interview Copilot.app/Contents/MacOS/"
+        
+        # Create the Info.plist (Essential for Mac to recognize it as an App)
+        echo '<?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleName</key>
+            <string>Interview Copilot</string>
+            <key>CFBundleDisplayName</key>
+            <string>Interview Copilot</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.interviewcopilot.app</string>
+            <key>CFBundleVersion</key>
+            <string>1.0.0</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleSignature</key>
+            <string>????</string>
+            <key>CFBundleExecutable</key>
+            <string>Source</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+        </dict>
+        </plist>' > "Interview Copilot.app/Contents/Info.plist"
+
+        # Fix Permissions (Crucial!)
+        chmod +x "Interview Copilot.app/Contents/MacOS/Source"
+
+    # 4. Create the DMG Installer
+    - name: Create DMG
+      run: |
+        # Use native mac tool to create disk image
+        hdiutil create -volname "InterviewCopilot" -srcfolder "Interview Copilot.app" -ov -format UDZO "InterviewCopilot.dmg"
+
+    # 5. Upload the Result so you can download it
+    - name: Upload DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: InterviewCopilot_Mac_Installer
+        path: InterviewCopilot.dmg
