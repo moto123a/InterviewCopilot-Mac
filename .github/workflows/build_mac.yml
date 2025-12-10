@@ -24,75 +24,159 @@ jobs:
           python-version: "3.10"
 
       # 1. Install Python libs and PyInstaller
-      - name: Install Python dependencies
+      - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install sounddevice faster-whisper numpy pyinstaller
 
-      # 2. Compile Python bridge to single executable
-      #    If whisper_mic_bridge.py is not in repo root, change the path here.
-      - name: Build Python executable
+      # 2. Compile Python script to a single executable
+      - name: Build Python Executable
         run: |
           pyinstaller --onefile --name whisper_bridge --clean whisper_mic_bridge.py
 
-      # 3. Publish .NET app for macOS
-      #    Make sure the csproj path and app name (InterviewCopilot) match your project.
-      - name: Publish .NET app
+      # 3. Publish .NET app for macOS (both Intel and Apple Silicon)
+      - name: Publish .NET App (x64)
         run: |
           dotnet publish Source/Source.csproj \
             -c Release \
             -r osx-x64 \
             --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -o publish
+            -p:PublishSingleFile=false \
+            -o publish/x64
 
-      # 4. Create .app bundle
-      - name: Create Mac bundle
+      - name: Publish .NET App (arm64)
+        run: |
+          dotnet publish Source/Source.csproj \
+            -c Release \
+            -r osx-arm64 \
+            --self-contained true \
+            -p:PublishSingleFile=false \
+            -o publish/arm64
+
+      # 4. Create the .app bundle (x64 version)
+      - name: Create Mac Bundle (x64)
         run: |
           mkdir -p "InterviewCopilot.app/Contents/MacOS"
           mkdir -p "InterviewCopilot.app/Contents/Resources"
 
-          # Copy published .NET files
-          cp publish/InterviewCopilot "InterviewCopilot.app/Contents/MacOS/" || true
-          cp publish/*.dll "InterviewCopilot.app/Contents/MacOS/" || true
-          cp publish/*.dylib "InterviewCopilot.app/Contents/MacOS/" 2>/dev/null || true
-          cp publish/*.json "InterviewCopilot.app/Contents/MacOS/" || true
+          # Copy .NET output
+          cp -R publish/x64/* InterviewCopilot.app/Contents/MacOS/
 
-          # Copy compiled Python bridge
-          # If dist is under a subfolder, adjust to e.g. Source/dist/whisper_bridge
-          cp dist/whisper_bridge "InterviewCopilot.app/Contents/MacOS/" || true
+          # Copy the compiled Python bridge
+          cp dist/whisper_bridge InterviewCopilot.app/Contents/MacOS/
 
-          # Create Info.plist (note: EOF is at start of line)
-          cat > "InterviewCopilot.app/Contents/Info.plist" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-  <dict>
-    <key>CFBundleExecutable</key>
-    <string>InterviewCopilot</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.yourname.interviewcopilot</string>
-    <key>CFBundleName</key>
-    <string>InterviewCopilot</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Need microphone for transcription</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-  </dict>
-</plist>
-EOF
+          # Make executables executable
+          chmod +x InterviewCopilot.app/Contents/MacOS/InterviewCopilot
+          chmod +x InterviewCopilot.app/Contents/MacOS/whisper_bridge
 
-      # 5. Zip and upload
-      - name: Zip app
-        run: zip -r "InterviewCopilot_Mac.zip" "InterviewCopilot.app"
+          # Create Info.plist
+          cat > InterviewCopilot.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>InterviewCopilot</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.moto123a.interviewcopilot</string>
+            <key>CFBundleName</key>
+            <string>InterviewCopilot</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>NSMicrophoneUsageDescription</key>
+            <string>InterviewCopilot needs microphone access for live transcription.</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSMinimumSystemVersion</key>
+            <string>10.15</string>
+          </dict>
+          </plist>
+          EOF
 
-      - name: Upload artifact
+      # 5. Create Mac Bundle (arm64 version)
+      - name: Create Mac Bundle (arm64)
+        run: |
+          mkdir -p "InterviewCopilot-arm64.app/Contents/MacOS"
+          mkdir -p "InterviewCopilot-arm64.app/Contents/Resources"
+
+          # Copy .NET output
+          cp -R publish/arm64/* InterviewCopilot-arm64.app/Contents/MacOS/
+
+          # Copy the compiled Python bridge
+          cp dist/whisper_bridge InterviewCopilot-arm64.app/Contents/MacOS/
+
+          # Make executables executable
+          chmod +x InterviewCopilot-arm64.app/Contents/MacOS/InterviewCopilot
+          chmod +x InterviewCopilot-arm64.app/Contents/MacOS/whisper_bridge
+
+          # Create Info.plist
+          cat > InterviewCopilot-arm64.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>InterviewCopilot</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.moto123a.interviewcopilot</string>
+            <key>CFBundleName</key>
+            <string>InterviewCopilot</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>NSMicrophoneUsageDescription</key>
+            <string>InterviewCopilot needs microphone access for live transcription.</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+          </dict>
+          </plist>
+          EOF
+
+      # 6. Create DMG installers
+      - name: Create DMG (x64)
+        run: |
+          hdiutil create -volname "InterviewCopilot" -srcfolder InterviewCopilot.app -ov -format UDZO InterviewCopilot-Intel.dmg
+
+      - name: Create DMG (arm64)
+        run: |
+          hdiutil create -volname "InterviewCopilot" -srcfolder InterviewCopilot-arm64.app -ov -format UDZO InterviewCopilot-AppleSilicon.dmg
+
+      # 7. Also create zip files as fallback
+      - name: Create Zip Files
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent InterviewCopilot.app InterviewCopilot-Intel.zip
+          ditto -c -k --sequesterRsrc --keepParent InterviewCopilot-arm64.app InterviewCopilot-AppleSilicon.zip
+
+      # 8. Upload artifacts
+      - name: Upload Intel DMG
         uses: actions/upload-artifact@v4
         with:
-          name: MacApp
-          path: InterviewCopilot_Mac.zip
+          name: InterviewCopilot-Intel-DMG
+          path: InterviewCopilot-Intel.dmg
+
+      - name: Upload Apple Silicon DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: InterviewCopilot-AppleSilicon-DMG
+          path: InterviewCopilot-AppleSilicon.dmg
+
+      - name: Upload Intel Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: InterviewCopilot-Intel-Zip
+          path: InterviewCopilot-Intel.zip
+
+      - name: Upload Apple Silicon Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: InterviewCopilot-AppleSilicon-Zip
+          path: InterviewCopilot-AppleSilicon.zip
