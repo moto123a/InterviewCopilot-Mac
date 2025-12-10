@@ -18,6 +18,7 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+<<<<<<< HEAD
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -77,6 +78,36 @@ jobs:
           <dict>
             <key>CFBundleExecutable</key>
             <string>InterviewCopilot</string>
+=======
+    # 1. Publish the App files
+    - name: Publish
+      run: |
+        # Find the .csproj file automatically
+        CSPROJ_PATH=$(find . -name "*.csproj" | head -n 1)
+        echo "Found Project: $CSPROJ_PATH"
+        
+        # Build the app for Intel Macs (Universal via Rosetta)
+        dotnet publish "$CSPROJ_PATH" -c Release -r osx-x64 --self-contained -o publish
+
+    # 2. Create the .APP Structure
+    - name: Create App Bundle
+      run: |
+        mkdir -p "Interview Copilot.app/Contents/MacOS"
+        mkdir -p "Interview Copilot.app/Contents/Resources"
+        
+        # Copy all published files to the MacOS folder
+        cp -a publish/. "Interview Copilot.app/Contents/MacOS/"
+        
+        # Create the Info.plist
+        echo '<?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleName</key>
+            <string>Interview Copilot</string>
+            <key>CFBundleDisplayName</key>
+            <string>Interview Copilot</string>
+>>>>>>> d2c4b26084cd85969928d337445f2a5ded6425fc
             <key>CFBundleIdentifier</key>
             <string>com.moto123a.interviewcopilot</string>
             <key>CFBundleName</key>
@@ -97,6 +128,7 @@ jobs:
           </plist>
           EOF
 
+<<<<<<< HEAD
       # 5. Create Mac Bundle (arm64 version)
       - name: Create Mac Bundle (arm64)
         run: |
@@ -180,3 +212,19 @@ jobs:
         with:
           name: InterviewCopilot-AppleSilicon-Zip
           path: InterviewCopilot-AppleSilicon.zip
+=======
+        # Fix Permissions
+        chmod +x "Interview Copilot.app/Contents/MacOS/Source"
+
+    # 3. Create the DMG Installer
+    - name: Create DMG
+      run: |
+        hdiutil create -volname "InterviewCopilot" -srcfolder "Interview Copilot.app" -ov -format UDZO "InterviewCopilot.dmg"
+
+    # 4. Upload the Result
+    - name: Upload DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: InterviewCopilot_Mac_Installer
+        path: InterviewCopilot.dmg
+>>>>>>> d2c4b26084cd85969928d337445f2a5ded6425fc
