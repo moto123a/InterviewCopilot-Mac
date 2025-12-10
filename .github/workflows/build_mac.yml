@@ -37,6 +37,9 @@ jobs:
       # 3. Compile Python script to a single executable
       - name: Build Python Executable
         run: |
+          ls -la
+          pwd
+          cat whisper_mic_bridge.py
           pyinstaller --onefile --name whisper_bridge --clean \
             --hidden-import=faster_whisper \
             --hidden-import=ctranslate2 \
