@@ -20,7 +20,7 @@ jobs:
     # 1. Publish the App files
     - name: Publish
       run: |
-        # Find the project file automatically
+        # Find the .csproj file automatically
         CSPROJ_PATH=$(find . -name "*.csproj" | head -n 1)
         echo "Found Project: $CSPROJ_PATH"
         
@@ -33,10 +33,10 @@ jobs:
         mkdir -p "Interview Copilot.app/Contents/MacOS"
         mkdir -p "Interview Copilot.app/Contents/Resources"
         
-        # Copy the built files
+        # Copy all published files to the MacOS folder
         cp -a publish/. "Interview Copilot.app/Contents/MacOS/"
         
-        # Create Info.plist (Required for Mac Apps)
+        # Create the Info.plist
         echo '<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -62,16 +62,15 @@ jobs:
         </dict>
         </plist>' > "Interview Copilot.app/Contents/Info.plist"
 
-        # Make the executable runable
+        # Fix Permissions
         chmod +x "Interview Copilot.app/Contents/MacOS/Source"
 
     # 3. Create the DMG Installer
     - name: Create DMG
       run: |
-        # Use built-in Mac tool to create the disk image
         hdiutil create -volname "InterviewCopilot" -srcfolder "Interview Copilot.app" -ov -format UDZO "InterviewCopilot.dmg"
 
-    # 4. Upload the Result for you to download
+    # 4. Upload the Result
     - name: Upload DMG
       uses: actions/upload-artifact@v4
       with:
